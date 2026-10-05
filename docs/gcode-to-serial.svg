@@ -1,0 +1,190 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1456" width="1000" height="1456" role="img" aria-label="Robotic Arm Drawing System, from G-code to serial bytes. test5.txt, hardcoded in main, is read one line at launch, then one per Enter key, until end of file or a G digit of 8. Parse::parseLine reads a line into an 80-character buffer, switches on each character G, X, Y, I, J, Z, takes the G digit from CommandLine[2], keeps X, Y, I, J across lines, and parses Z but never uses it. A switch on the G digit branches three ways. G00 rapid: F-20 quill off, one MoveToXY to the target, F+20 quill on, no interpolation. G01 line: Line::getNextPt takes plus or minus 0.2 steps along the vector from Current while Parse loops int(Length / 0.2) times. G02 and G03 arc: circle::DoitC treats I, J as the absolute center, G02 clockwise and G03 counter-clockwise, stepping 360 / (2 pi R / 0.2) degrees, which is 0.2 units of arc. Parse sends every line step plus a final endpoint snap, and the single G00 jump point, to MoveToPoint::MoveToXY, the single entry for every X/Y point; circle::DoitC sends each arc step and its endpoint snap there itself. RhinoMath::getAngpair in RinoMath.cpp solves two-link inverse kinematics with arms of 9.0: theta2 = acos((x squared + y squared - A squared - B squared) / 2AB), theta1 = asin(A sin theta2 / r) + atan(y / x), in degrees. MoveToXY then converts to absolute clicks, int(theta / 0.12), and calls MotoMoveServo for motor E first, then D. In RhrinoSpecific::MotoMoveServo, E and D send the differential TickAng1 or TickAng2 minus target and store the target, seeded at 750 clicks = 90 degrees, and D also subtracts E's differential from the call just before. The quill calls F-20 and F+20, from MoveToPoint::MotoMoveServoFout and Fin, skip MoveToXY, the IK and this bookkeeping. Every move is chunked into |cmd| / 50 commands of plus or minus 50 plus one remainder command, with Sleep(120) before and after each write. Tserial sends them to COM1 at 9600 baud, 7 data bits, even parity, 2 stop bits, each terminated CR LF, and skips writes if COM1 failed to open. Example: home to (4, 12) sends E-50 four times, E-24, then D+50 four times, D+19. The Rhino educational arm (hardware) has E shoulder, D elbow, and F waist where -20 takes the quill off and +20 puts it on; nothing is ever read back.">
+  <style>
+    .bg{fill:#ffffff}
+    .title{fill:#1f2328;font:600 22px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .sub{fill:#59636e;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .lbl{fill:#1f2328;font:600 14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .note{fill:#59636e;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .glbl{fill:#59636e;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;letter-spacing:.06em}
+    .elbl{fill:#59636e;font:11px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .edge{stroke:#818b98;stroke-width:1.6;fill:none}
+    .edge-dash{stroke:#818b98;stroke-width:1.6;fill:none;stroke-dasharray:6 4}
+    .arrow{fill:#818b98}
+    .group{fill:none;stroke:#d1d9e0;stroke-width:1.2;stroke-dasharray:4 4}
+    .b-blue{fill:#ddf4ff;stroke:#54aeff;stroke-width:1.5}
+    .b-green{fill:#dafbe1;stroke:#4ac26b;stroke-width:1.5}
+    .b-purple{fill:#fbefff;stroke:#c297ff;stroke-width:1.5}
+    .b-orange{fill:#fff1e5;stroke:#fb8f44;stroke-width:1.5}
+    .b-gray{fill:#f6f8fa;stroke:#d1d9e0;stroke-width:1.5}
+    .b-red{fill:#ffebe9;stroke:#ff8182;stroke-width:1.5}
+    .b-planned{fill:none;stroke:#818b98;stroke-width:1.4;stroke-dasharray:5 4}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .wire{stroke:#59636e;stroke-width:1.4;fill:none}
+    .dot{fill:#59636e}
+    @media (prefers-color-scheme: dark){
+      .bg{fill:#0d1117}
+      .title,.lbl{fill:#e6edf3}
+      .sub,.note,.glbl,.elbl{fill:#9198a1}
+      .edge,.edge-dash{stroke:#9198a1}
+      .arrow{fill:#9198a1}
+      .group{stroke:#3d444d}
+      .b-blue{fill:#0c2d6b;stroke:#4493f8}
+      .b-green{fill:#0f3b1e;stroke:#3fb950}
+      .b-purple{fill:#2e1a4f;stroke:#ab7df8}
+      .b-orange{fill:#3d1f0a;stroke:#f0883e}
+      .b-gray{fill:#151b23;stroke:#3d444d}
+      .b-red{fill:#3c1618;stroke:#f85149}
+      .b-planned{stroke:#9198a1}
+      .wire{stroke:#9198a1}
+      .dot{fill:#9198a1}
+    }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrow" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1000" height="1456" rx="12"/>
+  <text class="title" x="32" y="48">Robotic Arm Drawing System — from G-code to serial bytes</text>
+  <text class="sub" x="32" y="74">Each G-code line: parse, interpolate in 0.2-unit steps, solve IK, diff the clicks, send over RS-232.</text>
+
+  <!-- ===== input file ===== -->
+  <rect class="b-gray" x="270" y="92" width="460" height="72" rx="10"/>
+  <text class="lbl" x="500" y="115" text-anchor="middle">test5.txt — hardcoded in main()</text>
+  <text class="note mono" x="500" y="133" text-anchor="middle">G00X5.43Y11.18 · G01X4.0Y12.0 · G02X8.37Y11.25I7.0J0.0</text>
+  <text class="note" x="500" y="150" text-anchor="middle">line 1 at launch, then one per Enter · stops at EOF or a G digit '8'</text>
+  <path class="edge" d="M500,164 V196" marker-end="url(#ah)"/>
+
+  <!-- ===== parser ===== -->
+  <rect class="b-blue" x="270" y="200" width="460" height="72" rx="10"/>
+  <text class="lbl" x="500" y="223" text-anchor="middle">Parse::parseLine — Parse.cpp</text>
+  <text class="note" x="500" y="241" text-anchor="middle">80-char line buffer · switch on each char: G / X / Y / I / J / Z</text>
+  <text class="note" x="500" y="258" text-anchor="middle">G digit = CommandLine[2] · X Y I J persist · Z parsed but unused</text>
+  <path class="edge" d="M500,272 V300" marker-end="url(#ah)"/>
+
+  <polygon class="b-gray" points="500,304 620,334 500,364 380,334"/>
+  <text class="lbl" x="500" y="339" text-anchor="middle">switch on G digit</text>
+
+  <path class="edge" d="M380,334 H185 V436" marker-end="url(#ah)"/>
+  <text class="elbl" x="282" y="326" text-anchor="middle">G00 rapid</text>
+  <path class="edge" d="M500,364 V436" marker-end="url(#ah)"/>
+  <text class="elbl" x="510" y="404">G01 line</text>
+  <path class="edge" d="M620,334 H815 V436" marker-end="url(#ah)"/>
+  <text class="elbl" x="718" y="326" text-anchor="middle">G02 / G03 arc</text>
+
+  <!-- ===== motion primitives ===== -->
+  <rect class="b-green" x="40" y="440" width="290" height="72" rx="10"/>
+  <text class="lbl" x="185" y="463" text-anchor="middle">pen-up jump — in Parse.cpp</text>
+  <text class="note" x="185" y="481" text-anchor="middle">F-20 quill off → one MoveToXY(X, Y)</text>
+  <text class="note" x="185" y="498" text-anchor="middle">→ F+20 quill on · no interpolation</text>
+
+  <rect class="b-green" x="355" y="440" width="290" height="72" rx="10"/>
+  <text class="lbl" x="500" y="463" text-anchor="middle">Line::getNextPt — Line.cpp</text>
+  <text class="note" x="500" y="481" text-anchor="middle">±0.2 steps along the vector from Current</text>
+  <text class="note" x="500" y="498" text-anchor="middle">Parse loops int(Length / 0.2) times</text>
+
+  <rect class="b-green" x="670" y="440" width="290" height="72" rx="10"/>
+  <text class="lbl" x="815" y="463" text-anchor="middle">circle::DoitC — CircleC.cpp</text>
+  <text class="note" x="815" y="481" text-anchor="middle">I, J = absolute center · G02 CW, G03 CCW</text>
+  <text class="note" x="815" y="498" text-anchor="middle">step 360 / (2πR / 0.2)° = 0.2 units of arc</text>
+
+  <!-- primitives into the gate -->
+  <path class="edge" d="M185,512 V638 H266" marker-end="url(#ah)"/>
+  <text class="elbl" x="195" y="560">Parse sends the jump: one point</text>
+  <path class="edge" d="M500,512 V598" marker-end="url(#ah)"/>
+  <text class="elbl" x="510" y="548">Parse sends each step + endpoint snap</text>
+  <path class="edge" d="M815,512 V638 H734" marker-end="url(#ah)"/>
+  <text class="elbl" x="825" y="546">DoitC itself sends</text>
+  <text class="elbl" x="825" y="560">each step + endpoint snap</text>
+
+  <!-- quill bypass -->
+  <path class="edge-dash" d="M60,512 V1100 H266" marker-end="url(#ah)"/>
+  <text class="elbl" x="72" y="746">MotoMoveServoFout / Fin</text>
+  <text class="elbl" x="72" y="760">(MoveToPoint.cpp): F-20</text>
+  <text class="elbl" x="72" y="774">before the jump, F+20 after,</text>
+  <text class="elbl" x="72" y="788">straight to MotoMoveServo:</text>
+  <text class="elbl" x="72" y="802">no MoveToXY, no IK,</text>
+  <text class="elbl" x="72" y="816">no TickAng bookkeeping</text>
+
+  <!-- ===== gate ===== -->
+  <rect class="group" x="250" y="566" width="500" height="332" rx="12"/>
+  <text class="glbl" x="266" y="586">GATE — MoveToXY</text>
+
+  <rect class="b-purple" x="270" y="602" width="460" height="72" rx="10"/>
+  <text class="lbl" x="500" y="625" text-anchor="middle">MoveToPoint::MoveToXY(point) — MoveToPoint.cpp</text>
+  <text class="note" x="500" y="643" text-anchor="middle">the single entry for every X/Y point (motors E and D)</text>
+  <text class="note" x="500" y="660" text-anchor="middle">quill moves (F) never pass through here</text>
+  <path class="edge" d="M500,674 V700" marker-end="url(#ah)"/>
+
+  <rect class="b-purple" x="270" y="704" width="460" height="72" rx="10"/>
+  <text class="lbl" x="500" y="727" text-anchor="middle">RhinoMath::getAngpair — RinoMath.cpp, two-link IK</text>
+  <text class="note mono" x="500" y="745" text-anchor="middle">θ2 = acos((x² + y² − A² − B²) / 2AB) · A = B = 9.0</text>
+  <text class="note mono" x="500" y="762" text-anchor="middle">θ1 = asin(A·sin θ2 / √(x² + y²)) + atan(y / x)</text>
+  <path class="edge" d="M500,776 V806" marker-end="url(#ah)"/>
+  <text class="elbl" x="510" y="795">θ1, θ2 in degrees</text>
+
+  <rect class="b-purple" x="270" y="810" width="460" height="72" rx="10"/>
+  <text class="lbl" x="500" y="833" text-anchor="middle">degrees → absolute clicks, back in MoveToXY</text>
+  <text class="note mono" x="500" y="851" text-anchor="middle">MotoMoveServo('E', int(θ1 / .12))</text>
+  <text class="note mono" x="500" y="868" text-anchor="middle">MotoMoveServo('D', int(θ2 / .12))</text>
+  <path class="edge" d="M500,882 V960" marker-end="url(#ah)"/>
+  <text class="elbl" x="510" y="918">E first, then D: two calls per point</text>
+
+  <!-- ===== motor layer ===== -->
+  <rect class="group" x="250" y="930" width="500" height="222" rx="12"/>
+  <text class="glbl" x="266" y="950">MOTORS — RhrinoSpecific.cpp</text>
+
+  <rect class="b-orange" x="270" y="964" width="460" height="72" rx="10"/>
+  <text class="lbl" x="500" y="987" text-anchor="middle">differential + elbow coupling (E and D only)</text>
+  <text class="note" x="500" y="1005" text-anchor="middle">cmd = TickAng1/2 − target, then TickAng1/2 ← target (seed 750 = 90°)</text>
+  <text class="note" x="500" y="1022" text-anchor="middle">D only: cmd −= E’s differential from the call just before</text>
+  <path class="edge" d="M500,1036 V1060" marker-end="url(#ah)"/>
+
+  <rect class="b-orange" x="270" y="1064" width="460" height="72" rx="10"/>
+  <text class="lbl" x="500" y="1087" text-anchor="middle">chunk and pace — every motor, F included</text>
+  <text class="note" x="500" y="1105" text-anchor="middle">|cmd| / 50 commands of ±50, then one remainder command</text>
+  <text class="note" x="500" y="1122" text-anchor="middle">direction from the sign · Sleep(120) before and after each write</text>
+  <path class="edge" d="M500,1136 V1216" marker-end="url(#ah)"/>
+  <text class="elbl" x="510" y="1174">one ASCII command per write</text>
+
+  <!-- ===== wire ===== -->
+  <rect class="group" x="250" y="1186" width="500" height="122" rx="12"/>
+  <text class="glbl" x="266" y="1206">WIRE — tserial.cpp</text>
+
+  <rect class="b-red" x="270" y="1220" width="460" height="72" rx="10"/>
+  <text class="lbl" x="500" y="1243" text-anchor="middle">Tserial → COM1 (RS-232)</text>
+  <text class="note" x="500" y="1261" text-anchor="middle">9600 baud · 7 data bits · even parity · 2 stop bits (7E2)</text>
+  <text class="note" x="500" y="1278" text-anchor="middle">appends CR LF to each command · failed open → writes skipped</text>
+  <path class="edge" d="M500,1292 V1350" marker-end="url(#ah)"/>
+  <text class="elbl mono" x="510" y="1332">home → (4, 12): E-50 ×4, E-24, then D+50 ×4, D+19</text>
+
+  <!-- ===== hardware ===== -->
+  <rect class="b-planned" x="270" y="1354" width="460" height="72" rx="10"/>
+  <text class="lbl" x="500" y="1377" text-anchor="middle">Rhino educational arm — hardware, outside the repo</text>
+  <text class="note" x="500" y="1395" text-anchor="middle">E shoulder · D elbow · F waist: −20 quill off, +20 quill on</text>
+  <text class="note" x="500" y="1412" text-anchor="middle">open loop: nothing is ever read back from the arm</text>
+
+  <!-- ===== legend ===== -->
+  <text class="glbl" x="772" y="954">LEGEND</text>
+  <rect class="b-gray" x="772" y="966" width="26" height="14" rx="4"/>
+  <text class="note" x="810" y="977">G-code file</text>
+  <rect class="b-blue" x="772" y="988" width="26" height="14" rx="4"/>
+  <text class="note" x="810" y="999">parser</text>
+  <rect class="b-green" x="772" y="1010" width="26" height="14" rx="4"/>
+  <text class="note" x="810" y="1021">motion primitives</text>
+  <rect class="b-purple" x="772" y="1032" width="26" height="14" rx="4"/>
+  <text class="note" x="810" y="1043">IK gate</text>
+  <rect class="b-orange" x="772" y="1054" width="26" height="14" rx="4"/>
+  <text class="note" x="810" y="1065">motor layer</text>
+  <rect class="b-red" x="772" y="1076" width="26" height="14" rx="4"/>
+  <text class="note" x="810" y="1087">serial wire</text>
+  <rect class="b-planned" x="772" y="1098" width="26" height="14" rx="4"/>
+  <text class="note" x="810" y="1109">hardware, outside the repo</text>
+  <polygon class="b-gray" points="785,1120 799,1128 785,1136 771,1128"/>
+  <text class="note" x="810" y="1132">decision</text>
+  <path class="edge" d="M772,1150 H798" marker-end="url(#ah)"/>
+  <text class="note" x="810" y="1154">call / data flow</text>
+  <path class="edge-dash" d="M772,1172 H798" marker-end="url(#ah)"/>
+  <text class="note" x="810" y="1176">quill F, skips MoveToXY + IK</text>
+</svg>

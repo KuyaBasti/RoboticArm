@@ -1,0 +1,241 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1736" width="1000" height="1736" role="img" aria-label="Robotic Arm Drawing System, one G01 line end to end, as a 21-step sequence across main, Parse, Line, MoveToPoint, RhinoMath, RhrinoSpecific and the Tserial COM1 port. Line 9 of test5.txt, G01X4.0Y12.0, starts with the pen down at (3.77, 10.0) and TickAng1/2 at 1024/892 clicks. main calls parseLine, which reads GCODE &#x27;1&#x27;, X 4.0, Y 12.0, calls Line&#x27;s LineReset and sets WorkingPt to (0.23, 2.0). A loop runs 10 passes, bounded by int(Length / 0.2) whose first check reads the stale constructor Length 1.0: each pass getNextPt adds 0.2 to UnitDistInc at atan(0.23/2.0), about 6.56 degrees from +Y, and returns the next point (3.79, 10.20 on pass 1); MoveToXY asks RhinoMath for two-link IK angles in degrees (122.41 and 105.61 on pass 1), sends MotoMoveServo E with int(theta1/0.12) = 1020, which writes the differential E+4 to COM1 with CR LF, then MotoMoveServo D with 880, whose differential 12 minus E&#x27;s 4 is written as D+8; Parse prints the point. After the loop the endpoint snap MoveToXY(4.0, 12.0) gives 116.92 and 90.71 degrees, absolute clicks E 974 and D 755, so it writes only E-0 and D+1. Parse sets Current to (4.0, 12.0) and returns to main, which waits for the next Enter; every write sits between two 120 ms sleeps, about 5.3 s for this stroke.">
+  <style>
+    .bg{fill:#ffffff}
+    .title{fill:#1f2328;font:600 22px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .sub{fill:#59636e;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .lbl{fill:#1f2328;font:600 14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .note{fill:#59636e;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .glbl{fill:#59636e;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;letter-spacing:.06em}
+    .elbl{fill:#59636e;font:11px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .edge{stroke:#818b98;stroke-width:1.6;fill:none}
+    .edge-dash{stroke:#818b98;stroke-width:1.6;fill:none;stroke-dasharray:6 4}
+    .arrow{fill:#818b98}
+    .group{fill:none;stroke:#d1d9e0;stroke-width:1.2;stroke-dasharray:4 4}
+    .b-blue{fill:#ddf4ff;stroke:#54aeff;stroke-width:1.5}
+    .b-green{fill:#dafbe1;stroke:#4ac26b;stroke-width:1.5}
+    .b-purple{fill:#fbefff;stroke:#c297ff;stroke-width:1.5}
+    .b-orange{fill:#fff1e5;stroke:#fb8f44;stroke-width:1.5}
+    .b-gray{fill:#f6f8fa;stroke:#d1d9e0;stroke-width:1.5}
+    .b-red{fill:#ffebe9;stroke:#ff8182;stroke-width:1.5}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    @media (prefers-color-scheme: dark){
+      .bg{fill:#0d1117}
+      .title,.lbl{fill:#e6edf3}
+      .sub,.note,.glbl,.elbl{fill:#9198a1}
+      .edge,.edge-dash{stroke:#9198a1}
+      .arrow{fill:#9198a1}
+      .group{stroke:#3d444d}
+      .b-blue{fill:#0c2d6b;stroke:#4493f8}
+      .b-green{fill:#0f3b1e;stroke:#3fb950}
+      .b-purple{fill:#2e1a4f;stroke:#ab7df8}
+      .b-orange{fill:#3d1f0a;stroke:#f0883e}
+      .b-gray{fill:#151b23;stroke:#3d444d}
+      .b-red{fill:#3c1618;stroke:#f85149}
+    }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrow" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="1000" height="1736" rx="12"/>
+  <text class="title" x="32" y="48">Robotic Arm Drawing System — one G01 line, end to end</text>
+  <text class="sub" x="32" y="74">test5.txt line 9, G01X4.0Y12.0, with the pen at (3.77, 10.0): ten 0.2-unit steps, then the endpoint snap.</text>
+  <!-- legend -->
+  <rect class="b-gray" x="32" y="88" width="12" height="12" rx="3"/>
+  <text class="elbl" x="50" y="98">driver</text>
+  <rect class="b-blue" x="106" y="88" width="12" height="12" rx="3"/>
+  <text class="elbl" x="124" y="98">parser</text>
+  <rect class="b-green" x="180" y="88" width="12" height="12" rx="3"/>
+  <text class="elbl" x="198" y="98">line interpolator</text>
+  <rect class="b-purple" x="306" y="88" width="12" height="12" rx="3"/>
+  <text class="elbl" x="324" y="98">IK gate</text>
+  <rect class="b-red" x="386" y="88" width="12" height="12" rx="3"/>
+  <text class="elbl" x="404" y="98">motor layer and serial wire</text>
+  <rect class="b-orange" x="570" y="88" width="12" height="12" rx="3"/>
+  <text class="elbl" x="588" y="98">note or internal step</text>
+  <line class="edge" x1="32" y1="114" x2="62" y2="114" marker-end="url(#ah)"/>
+  <text class="elbl" x="70" y="118">call or serial write</text>
+  <line class="edge-dash" x1="186" y1="114" x2="216" y2="114" marker-end="url(#ah)"/>
+  <text class="elbl" x="224" y="118">return value</text>
+  <circle class="b-gray" cx="310" cy="114" r="7"/>
+  <text class="elbl" x="324" y="118">step number, colored by who acts</text>
+  <rect class="group" x="520" y="107" width="26" height="14" rx="3"/>
+  <text class="elbl" x="554" y="118">loop</text>
+  <!-- participants + lifelines -->
+  <g>
+    <line class="group" x1="74" y1="188" x2="74" y2="1716"/>
+    <line class="group" x1="192" y1="188" x2="192" y2="1716"/>
+    <line class="group" x1="386" y1="188" x2="386" y2="1716"/>
+    <line class="group" x1="494" y1="188" x2="494" y2="1716"/>
+    <line class="group" x1="640" y1="188" x2="640" y2="1716"/>
+    <line class="group" x1="772" y1="188" x2="772" y2="1716"/>
+    <line class="group" x1="914" y1="188" x2="914" y2="1716"/>
+    <rect class="b-gray" x="12" y="136" width="124" height="52" rx="10"/>
+    <text class="lbl" x="74" y="158" text-anchor="middle">main</text>
+    <text class="note" x="74" y="176" text-anchor="middle">ParseGCodeD.cpp</text>
+    <rect class="b-blue" x="150" y="136" width="84" height="52" rx="10"/>
+    <text class="lbl" x="192" y="158" text-anchor="middle">Parse</text>
+    <text class="note" x="192" y="176" text-anchor="middle">Parse.cpp</text>
+    <rect class="b-green" x="346" y="136" width="80" height="52" rx="10"/>
+    <text class="lbl" x="386" y="158" text-anchor="middle">Line</text>
+    <text class="note" x="386" y="176" text-anchor="middle">Line.cpp</text>
+    <rect class="b-purple" x="434" y="136" width="120" height="52" rx="10"/>
+    <text class="lbl" x="494" y="158" text-anchor="middle">MoveToPoint</text>
+    <text class="note" x="494" y="176" text-anchor="middle">MoveToPoint.cpp</text>
+    <rect class="b-purple" x="586" y="136" width="108" height="52" rx="10"/>
+    <text class="lbl" x="640" y="158" text-anchor="middle">RhinoMath</text>
+    <text class="note" x="640" y="176" text-anchor="middle">RinoMath.cpp</text>
+    <rect class="b-red" x="707" y="136" width="130" height="52" rx="10"/>
+    <text class="lbl" x="772" y="158" text-anchor="middle">RhrinoSpecific</text>
+    <text class="note" x="772" y="176" text-anchor="middle">RhrinoSpecific.cpp</text>
+    <rect class="b-red" x="852" y="136" width="124" height="52" rx="10"/>
+    <text class="lbl" x="914" y="158" text-anchor="middle">Tserial · COM1</text>
+    <text class="note" x="914" y="176" text-anchor="middle">9600 baud · 7E2</text>
+  </g>
+  <!-- loop fragment -->
+  <rect class="group" x="16" y="500" width="968" height="900" rx="8"/>
+  <g>
+    <!-- note -->
+    <rect class="b-orange" x="24" y="204" width="680" height="52" rx="8"/>
+    <text class="note" x="38" y="226">before: line 8, <tspan class="mono">G00X3.77Y10.0</tspan>, left the pen down at Current = (3.77, 10.0) and TickAng1, TickAng2 = 1024, 892</text>
+    <text class="note" x="38" y="242">the operator presses Enter: cin.get() returns and main's while(1) calls parseLine() again</text>
+    <!-- step 1 -->
+    <line class="edge" x1="86" y1="296" x2="191" y2="296" marker-end="url(#ah)"/>
+    <circle class="b-gray" cx="74" cy="296" r="12"/>
+    <text class="lbl" x="74" y="301" text-anchor="middle">1</text>
+    <text class="note" x="92" y="288">parseLine()</text>
+    <!-- step 2 -->
+    <rect class="b-orange" x="110" y="318" width="720" height="52" rx="8"/>
+    <circle class="b-blue" cx="132" cy="344" r="12"/>
+    <text class="lbl" x="132" y="349" text-anchor="middle">2</text>
+    <text class="note" x="154" y="340">getline → <tspan class="mono">"G01X4.0Y12.0"</tspan> · switch per char: GCODE = CommandLine[2] = '1', X = 4.0, Y = 12.0</text>
+    <text class="note" x="154" y="356">I, J keep 6.0, 8.0 from line 7 · echoes G01 X Y I J · case '1' sends no F (quill) move: the pen stays down</text>
+    <!-- step 3 -->
+    <line class="edge" x1="204" y1="420" x2="385" y2="420" marker-end="url(#ah)"/>
+    <circle class="b-blue" cx="192" cy="420" r="12"/>
+    <text class="lbl" x="192" y="425" text-anchor="middle">3</text>
+    <text class="note" x="210" y="396">LineReset()</text>
+    <text class="note" x="210" y="412">UnitDistInc = 0.0</text>
+    <!-- step 4 -->
+    <path class="edge" d="M204,452 H218 Q226,452 226,460 V466 Q226,474 218,474 H194" marker-end="url(#ah)"/>
+    <circle class="b-blue" cx="192" cy="452" r="12"/>
+    <text class="lbl" x="192" y="457" text-anchor="middle">4</text>
+    <text class="note" x="236" y="459">WorkingPt = (0.23, 2.0)</text>
+    <text class="note" x="236" y="475">= (X, Y) − Current</text>
+    <!-- loop header -->
+    <rect class="b-gray" x="16" y="500" width="680" height="62" rx="8"/>
+    <text class="glbl" x="30" y="519">loop · 10 passes · worked numbers are pass 1</text>
+    <text class="note" x="30" y="537">bound: traverse &lt; getLineSteps(0.2) = int(Length / 0.2), re-read at every check; the first check</text>
+    <text class="note" x="30" y="553">reads the previous Length, 1.0 (constructor default: test5's first G01) → 5; getNextPt then sets 2.013 → 10</text>
+    <!-- step 5 -->
+    <line class="edge" x1="204" y1="612" x2="385" y2="612" marker-end="url(#ah)"/>
+    <circle class="b-blue" cx="192" cy="612" r="12"/>
+    <text class="lbl" x="192" y="617" text-anchor="middle">5</text>
+    <text class="note" x="210" y="588">getNextPt(WorkingPt,</text>
+    <text class="note" x="210" y="604">Current)</text>
+    <!-- step 6 -->
+    <rect class="b-orange" x="300" y="634" width="600" height="52" rx="8"/>
+    <circle class="b-green" cx="322" cy="660" r="12"/>
+    <text class="lbl" x="322" y="665" text-anchor="middle">6</text>
+    <text class="note" x="344" y="656">UnitDistInc += 0.2 (endpoint in +X/+Y) · Angle = atan(0.23 / 2.0) ≈ 6.56° from +Y · Length = 2.013</text>
+    <text class="note" x="344" y="672">Ptret = Current + UnitDistInc · (sin Angle, cos Angle)</text>
+    <!-- step 7 -->
+    <line class="edge-dash" x1="374" y1="756" x2="193" y2="756" marker-end="url(#ah)"/>
+    <circle class="b-green" cx="386" cy="756" r="12"/>
+    <text class="lbl" x="386" y="761" text-anchor="middle">7</text>
+    <text class="note" x="210" y="716">Ptret, pass 1: (3.79, 10.20)</text>
+    <text class="note" x="210" y="732">pass 2: (3.82, 10.40), …</text>
+    <text class="note" x="210" y="748">pass 10: (4.00, 11.99)</text>
+    <!-- step 8 -->
+    <line class="edge" x1="204" y1="800" x2="493" y2="800" marker-end="url(#ah)"/>
+    <circle class="b-blue" cx="192" cy="800" r="12"/>
+    <text class="lbl" x="192" y="805" text-anchor="middle">8</text>
+    <text class="note" x="210" y="792">MoveToXY(Ptret)</text>
+    <!-- step 9 -->
+    <line class="edge" x1="506" y1="844" x2="639" y2="844" marker-end="url(#ah)"/>
+    <circle class="b-purple" cx="494" cy="844" r="12"/>
+    <text class="lbl" x="494" y="849" text-anchor="middle">9</text>
+    <text class="note" x="512" y="836">getAngpair(Ptret)</text>
+    <!-- step 10 -->
+    <rect class="b-orange" x="532" y="866" width="446" height="52" rx="8"/>
+    <circle class="b-purple" cx="554" cy="892" r="12"/>
+    <text class="lbl" x="554" y="897" text-anchor="middle">10</text>
+    <text class="note" x="576" y="888">θ2 = acos((x²+y²−A²−B²) / 2AB) · θ1 = asin(A·sin θ2 / r) + atan(y/x)</text>
+    <text class="note" x="576" y="904">A = B = 9.0, r = √(x²+y²) · in degrees, both printed to the console</text>
+    <!-- step 11 -->
+    <line class="edge-dash" x1="628" y1="966" x2="495" y2="966" marker-end="url(#ah)"/>
+    <circle class="b-purple" cx="640" cy="966" r="12"/>
+    <text class="lbl" x="640" y="971" text-anchor="middle">11</text>
+    <text class="note" x="512" y="942">AnglePair, degrees:</text>
+    <text class="note" x="512" y="958">122.41°, 105.61°</text>
+    <!-- step 12 -->
+    <line class="edge" x1="506" y1="1026" x2="771" y2="1026" marker-end="url(#ah)"/>
+    <circle class="b-purple" cx="494" cy="1026" r="12"/>
+    <text class="lbl" x="494" y="1031" text-anchor="middle">12</text>
+    <text class="note" x="512" y="1002">MotoMoveServo('E',</text>
+    <text class="note" x="512" y="1018">int(θ1 / .12) = 1020)</text>
+    <!-- step 13 -->
+    <rect class="b-orange" x="532" y="1048" width="446" height="52" rx="8"/>
+    <circle class="b-red" cx="554" cy="1074" r="12"/>
+    <text class="lbl" x="554" y="1079" text-anchor="middle">13</text>
+    <text class="note" x="576" y="1070">E: EmotorDistance = TickAng1 − target = 1024 − 1020 = +4</text>
+    <text class="note" x="576" y="1086">TickAng1 ← 1020 · 4 / 50 = 0 <tspan class="mono">"E+50"</tspan> chunks, then the remainder 4</text>
+    <!-- step 14 -->
+    <line class="edge" x1="784" y1="1144" x2="913" y2="1144" marker-end="url(#ah)"/>
+    <circle class="b-red" cx="772" cy="1144" r="12"/>
+    <text class="lbl" x="772" y="1149" text-anchor="middle">14</text>
+    <text class="note" x="790" y="1120"><tspan class="mono">robo &lt;&lt; "E+4"</tspan></text>
+    <text class="note" x="790" y="1136">+ CR LF</text>
+    <!-- step 15 -->
+    <line class="edge" x1="506" y1="1204" x2="771" y2="1204" marker-end="url(#ah)"/>
+    <circle class="b-purple" cx="494" cy="1204" r="12"/>
+    <text class="lbl" x="494" y="1209" text-anchor="middle">15</text>
+    <text class="note" x="512" y="1180">MotoMoveServo('D',</text>
+    <text class="note" x="512" y="1196">int(θ2 / .12) = 880)</text>
+    <!-- step 16 -->
+    <rect class="b-orange" x="532" y="1226" width="446" height="52" rx="8"/>
+    <circle class="b-red" cx="554" cy="1252" r="12"/>
+    <text class="lbl" x="554" y="1257" text-anchor="middle">16</text>
+    <text class="note" x="576" y="1248">D: (TickAng2 − target) − EmotorDistance = (892 − 880) − 4 = +8</text>
+    <text class="note" x="576" y="1264">TickAng2 ← 880 · the coupling subtracts the E move just made</text>
+    <!-- step 17 -->
+    <line class="edge" x1="784" y1="1322" x2="913" y2="1322" marker-end="url(#ah)"/>
+    <circle class="b-red" cx="772" cy="1322" r="12"/>
+    <text class="lbl" x="772" y="1327" text-anchor="middle">17</text>
+    <text class="note" x="790" y="1298"><tspan class="mono">robo &lt;&lt; "D+8"</tspan></text>
+    <text class="note" x="790" y="1314">+ CR LF</text>
+    <!-- step 18 -->
+    <path class="edge" d="M204,1356 H218 Q226,1356 226,1364 V1370 Q226,1378 218,1378 H194" marker-end="url(#ah)"/>
+    <circle class="b-blue" cx="192" cy="1356" r="12"/>
+    <text class="lbl" x="192" y="1361" text-anchor="middle">18</text>
+    <text class="note" x="236" y="1363">prints Ptret, 1 decimal:</text>
+    <text class="note" x="236" y="1379"><tspan class="mono">"Line:&#160;&#160;&#160;+3.8&#160;&#160;&#160;+10.2"</tspan></text>
+    <!-- step 19 -->
+    <line class="edge" x1="204" y1="1446" x2="493" y2="1446" marker-end="url(#ah)"/>
+    <circle class="b-blue" cx="192" cy="1446" r="12"/>
+    <text class="lbl" x="192" y="1451" text-anchor="middle">19</text>
+    <text class="note" x="210" y="1422">endpoint snap:</text>
+    <text class="note" x="210" y="1438">MoveToXY(4.0, 12.0)</text>
+    <!-- note -->
+    <rect class="b-orange" x="440" y="1468" width="532" height="52" rx="8"/>
+    <text class="note" x="454" y="1490">steps 9–17 again: θ1 ≈ 116.92°, θ2 ≈ 90.71° → absolute E 974, D 755</text>
+    <text class="note" x="454" y="1506">pass 10 left TickAng1, TickAng2 = 974, 756, so the snap writes only <tspan class="mono">"E-0"</tspan>, <tspan class="mono">"D+1"</tspan></text>
+    <!-- step 20 -->
+    <path class="edge" d="M204,1548 H218 Q226,1548 226,1556 V1562 Q226,1570 218,1570 H194" marker-end="url(#ah)"/>
+    <circle class="b-blue" cx="192" cy="1548" r="12"/>
+    <text class="lbl" x="192" y="1553" text-anchor="middle">20</text>
+    <text class="note" x="236" y="1547">Current, CurrentX/Y ←</text>
+    <text class="note" x="236" y="1563">WorkingPt + Current</text>
+    <text class="note" x="236" y="1579">= (4.0, 12.0)</text>
+    <!-- step 21 -->
+    <line class="edge-dash" x1="180" y1="1626" x2="75" y2="1626" marker-end="url(#ah)"/>
+    <circle class="b-blue" cx="192" cy="1626" r="12"/>
+    <text class="lbl" x="192" y="1631" text-anchor="middle">21</text>
+    <text class="note" x="92" y="1618">return</text>
+    <!-- note -->
+    <rect class="b-orange" x="24" y="1648" width="760" height="52" rx="8"/>
+    <text class="note" x="38" y="1670">main's cin.get() waits for the next Enter (line 10) · each write sits between two Sleep(120) calls:</text>
+    <text class="note" x="38" y="1686">2 writes per MoveToXY here × 11 calls (10 passes + the snap) ≈ 5.3 s of sleep for this one stroke</text>
+  </g>
+</svg>

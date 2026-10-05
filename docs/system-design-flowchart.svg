@@ -1,0 +1,220 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1830" width="1000" height="1830" role="img" aria-label="Robotic Arm Drawing System end-to-end flowchart. ParseGCodeD.cpp main builds Parse with the hardcoded file test5.txt, one of three face-drawing variants (test3, test5, test6), each ending in an m80 line, then loops: parseLine, wait for Enter. parseLine reads one line with getline, takes the G digit from CommandLine[2] and scans X, Y, I, J and Z as digits, dot and minus with atof, writing modal member state that is never reset, so the m80 line, which has no G word, re-runs the last move. Dispatch on the G digit: 0 is a jump (F minus 20 quill off, one MoveToXY to the target, F plus 20 quill on); 1 is Line, a relative vector in plus or minus 0.2 steps at an angle from the plus Y axis with loop bound int(Length / 0.2) re-read each step, whose points Parse sends to MoveToXY; 2 and 3 are circle, with I and J as the absolute center and 360 / (2 pi R / 0.2) degrees per 0.2-unit arc step, which calls MoveToXY itself. Line and arc end with an endpoint snap; anything else causes no motion. MoveToPoint::MoveToXY runs RhinoMath::getAngpair in RinoMath.cpp, two-link inverse kinematics with A = B = 9.0, and converts degrees to clicks with int(theta / 0.12), always motor E then motor D. RhrinoSpecific::MotoMoveServo sends TickAng minus target and stores the target (seeded at 750 clicks = 90 degrees, open loop); only the D command subtracts the E differential just issued; every command is chunked into plus or minus 50 click writes plus a remainder, with Sleep(120) before and after each write. The quill moves F minus 20 and F plus 20 skip IK and TickAng. Tserial (tserial.h and tserial.cpp, modified 2013) sends over COM1 at 9600 baud 7E2 with CR LF appended, transmit only, and a failed open turns every write into a no-op, over RS-232 to the Rhino arm: E shoulder, D elbow, F waist used to take the quill off and on. Present but unused: RhinoMath.h (uncompilable, skipped because of a duplicate RHINOMAN_H guard), RhrinoSpecificold.cpp and ParseGCodeE4_27.cpp (not in the build), Z, QuilOutFlag and Line's MoveToPoint pointer.">
+  <style>
+    .bg{fill:#ffffff}
+    .title{fill:#1f2328;font:600 22px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .sub{fill:#59636e;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .lbl{fill:#1f2328;font:600 14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .note{fill:#59636e;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .glbl{fill:#59636e;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;letter-spacing:.06em}
+    .elbl{fill:#59636e;font:11px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .edge{stroke:#818b98;stroke-width:1.6;fill:none}
+    .edge-dash{stroke:#818b98;stroke-width:1.6;fill:none;stroke-dasharray:6 4}
+    .arrow{fill:#818b98}
+    .group{fill:none;stroke:#d1d9e0;stroke-width:1.2;stroke-dasharray:4 4}
+    .b-blue{fill:#ddf4ff;stroke:#54aeff;stroke-width:1.5}
+    .b-green{fill:#dafbe1;stroke:#4ac26b;stroke-width:1.5}
+    .b-purple{fill:#fbefff;stroke:#c297ff;stroke-width:1.5}
+    .b-orange{fill:#fff1e5;stroke:#fb8f44;stroke-width:1.5}
+    .b-gray{fill:#f6f8fa;stroke:#d1d9e0;stroke-width:1.5}
+    .b-red{fill:#ffebe9;stroke:#ff8182;stroke-width:1.5}
+    .b-planned{fill:none;stroke:#818b98;stroke-width:1.4;stroke-dasharray:5 4}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .wire{stroke:#59636e;stroke-width:1.4;fill:none}
+    .dot{fill:#59636e}
+    @media (prefers-color-scheme: dark){
+      .bg{fill:#0d1117}
+      .title,.lbl{fill:#e6edf3}
+      .sub,.note,.glbl,.elbl{fill:#9198a1}
+      .edge,.edge-dash{stroke:#9198a1}
+      .arrow{fill:#9198a1}
+      .group{stroke:#3d444d}
+      .b-blue{fill:#0c2d6b;stroke:#4493f8}
+      .b-green{fill:#0f3b1e;stroke:#3fb950}
+      .b-purple{fill:#2e1a4f;stroke:#ab7df8}
+      .b-orange{fill:#3d1f0a;stroke:#f0883e}
+      .b-gray{fill:#151b23;stroke:#3d444d}
+      .b-red{fill:#3c1618;stroke:#f85149}
+      .b-planned{stroke:#9198a1}
+      .wire{stroke:#9198a1}
+      .dot{fill:#9198a1}
+    }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrow" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1000" height="1830" rx="12"/>
+  <text class="title" x="32" y="48">Robotic Arm Drawing System — end-to-end flowchart</text>
+  <text class="sub" x="32" y="74">Every point passes one gate (two-link IK → 0.12° clicks) and leaves as differential COM1 commands; lines and arcs step 0.2 units.</text>
+
+  <!-- ===== Input ===== -->
+  <rect class="group" x="24" y="92" width="692" height="128" rx="12"/>
+  <text class="glbl" x="40" y="113">INPUT — LINE 1 AT LAUNCH, THEN ONE PER ENTER</text>
+  <rect class="b-gray" x="40" y="126" width="356" height="78" rx="10"/>
+  <text class="lbl" x="218" y="150" text-anchor="middle">ParseGCodeD.cpp — main()</text>
+  <text class="note mono" x="218" y="169" text-anchor="middle">Parse DataIn("test5.txt");</text>
+  <text class="note mono" x="218" y="188" text-anchor="middle">while (1) { DataIn.parseLine(); cin.get(); }</text>
+  <rect class="b-gray" x="420" y="126" width="280" height="78" rx="10"/>
+  <text class="lbl" x="560" y="150" text-anchor="middle">test3 / test5 / test6.txt</text>
+  <text class="note" x="560" y="169" text-anchor="middle">the face drawing, 3 variants</text>
+  <text class="note" x="560" y="188" text-anchor="middle">each ends with an m80 line</text>
+
+  <path class="edge" d="M218,204 V290" marker-end="url(#ah)"/>
+  <text class="elbl" x="228" y="243">parseLine(), then wait for Enter</text>
+  <path class="edge" d="M560,204 V290" marker-end="url(#ah)"/>
+  <text class="elbl" x="570" y="243">getline on test5.txt, one line per call</text>
+
+  <!-- ===== Parser ===== -->
+  <rect class="group" x="24" y="256" width="952" height="234" rx="12"/>
+  <text class="glbl" x="960" y="277" text-anchor="end">PARSER — Parse.h / Parse.cpp</text>
+  <rect class="b-blue" x="40" y="294" width="600" height="78" rx="10"/>
+  <text class="lbl" x="340" y="318" text-anchor="middle">Parse::parseLine — character switch</text>
+  <text class="note" x="340" y="337" text-anchor="middle">returns without reading at EOF, or once the G digit is '8'</text>
+  <text class="note" x="340" y="356" text-anchor="middle">G → CommandLine[2] · X Y I J Z → scan digits . − then atof</text>
+  <rect class="b-gray" x="704" y="294" width="256" height="78" rx="10"/>
+  <text class="lbl" x="832" y="318" text-anchor="middle">modal word state</text>
+  <text class="note" x="832" y="337" text-anchor="middle">G, X, Y, I, J persist, never reset</text>
+  <text class="note" x="832" y="356" text-anchor="middle">m80 has no G word → last move re-runs</text>
+  <rect class="b-blue" x="40" y="410" width="600" height="64" rx="10"/>
+  <text class="lbl" x="340" y="437" text-anchor="middle">dispatch — switch on the G digit</text>
+  <text class="note" x="340" y="456" text-anchor="middle">'0' jump · '1' line · '2' / '3' arc · anything else: no motion</text>
+
+  <path class="edge-dash" d="M640,333 H700" marker-end="url(#ah)"/>
+  <text class="elbl" x="670" y="325" text-anchor="middle">writes</text>
+  <path class="edge" d="M340,372 V406" marker-end="url(#ah)"/>
+  <text class="elbl" x="350" y="394">after the whole line is scanned</text>
+  <path class="edge-dash" d="M832,372 V442 H644" marker-end="url(#ah)"/>
+  <text class="elbl" x="842" y="410">read on every line</text>
+
+  <!-- ===== dispatch fan-out ===== -->
+  <path class="edge" d="M175,474 V562" marker-end="url(#ah)"/>
+  <text class="elbl" x="185" y="522">G00</text>
+  <path class="edge" d="M495,474 V562" marker-end="url(#ah)"/>
+  <text class="elbl" x="505" y="522">G01</text>
+  <path class="edge" d="M620,474 V516 H820 V562" marker-end="url(#ah)"/>
+  <text class="elbl" x="720" y="508" text-anchor="middle">G02 / G03</text>
+
+  <!-- ===== Motion primitives ===== -->
+  <rect class="group" x="24" y="532" width="952" height="132" rx="12"/>
+  <text class="glbl" x="196" y="554">MOTION PRIMITIVES</text>
+  <rect class="b-green" x="40" y="566" width="270" height="78" rx="10"/>
+  <text class="lbl" x="175" y="590" text-anchor="middle">G00 — jump (Parse.cpp)</text>
+  <text class="note" x="175" y="609" text-anchor="middle">F −20 (quill off) → one MoveToXY</text>
+  <text class="note" x="175" y="628" text-anchor="middle">→ F +20 (quill on)</text>
+  <rect class="b-green" x="350" y="566" width="290" height="78" rx="10"/>
+  <text class="lbl" x="495" y="590" text-anchor="middle">G01 — Line (Line.cpp)</text>
+  <text class="note" x="495" y="609" text-anchor="middle">relative vector · ±0.2 steps · angle from +Y</text>
+  <text class="note" x="495" y="628" text-anchor="middle">bound int(Length / 0.2), re-read each step</text>
+  <rect class="b-green" x="680" y="566" width="280" height="78" rx="10"/>
+  <text class="lbl" x="820" y="590" text-anchor="middle">G02 / G03 — circle (CircleC.cpp)</text>
+  <text class="note" x="820" y="609" text-anchor="middle">I, J = absolute center · R from the start</text>
+  <text class="note" x="820" y="628" text-anchor="middle">360 / (2πR / 0.2)° per 0.2-unit arc step</text>
+
+  <!-- ===== primitives -> gate ===== -->
+  <path class="edge" d="M175,644 V801 H276" marker-end="url(#ah)"/>
+  <text class="elbl" x="185" y="690">one point: the target</text>
+  <path class="edge" d="M495,644 V758" marker-end="url(#ah)"/>
+  <text class="elbl" x="505" y="684">each step + endpoint snap</text>
+  <text class="elbl" x="505" y="698">(Parse calls MoveToXY)</text>
+  <path class="edge" d="M820,644 V801 H724" marker-end="url(#ah)"/>
+  <text class="elbl" x="830" y="684">each arc step + endpoint snap</text>
+  <text class="elbl" x="830" y="698">(DoitC calls MoveToXY)</text>
+
+  <!-- ===== quill bypass: F moves skip IK and TickAng ===== -->
+  <path class="edge" d="M60,644 V1277 H276" marker-end="url(#ah)"/>
+  <text class="elbl" x="70" y="1000">F −20 / F +20 (quill)</text>
+  <text class="elbl" x="70" y="1014">skips IK and TickAng</text>
+
+  <!-- ===== Gate ===== -->
+  <rect class="group" x="200" y="726" width="600" height="228" rx="12"/>
+  <text class="glbl" x="516" y="747">THE GATE — MoveToPoint::MoveToXY</text>
+  <rect class="b-purple" x="280" y="762" width="440" height="78" rx="10"/>
+  <text class="lbl" x="500" y="786" text-anchor="middle">RhinoMath::getAngpair (RinoMath.cpp)</text>
+  <text class="note" x="500" y="805" text-anchor="middle">A = B = 9.0 · θ2 = acos((x² + y² − A² − B²) / 2AB)</text>
+  <text class="note" x="500" y="824" text-anchor="middle">θ1 = asin(A·sin θ2 / √(x² + y²)) + atan(y / x), in degrees</text>
+  <rect class="b-purple" x="280" y="870" width="440" height="64" rx="10"/>
+  <text class="lbl" x="500" y="897" text-anchor="middle">degrees → clicks</text>
+  <text class="note" x="500" y="916" text-anchor="middle">int(θ1 / 0.12) to motor E, then int(θ2 / 0.12) to motor D</text>
+  <path class="edge" d="M500,840 V866" marker-end="url(#ah)"/>
+
+  <path class="edge" d="M500,934 V1032" marker-end="url(#ah)"/>
+  <text class="elbl" x="490" y="981" text-anchor="end">E then D, always in that order</text>
+
+  <!-- ===== Motor layer ===== -->
+  <rect class="group" x="200" y="1000" width="600" height="336" rx="12"/>
+  <text class="glbl" x="516" y="1021">MOTOR LAYER — RhrinoSpecific.cpp</text>
+  <rect class="b-red" x="280" y="1036" width="440" height="78" rx="10"/>
+  <text class="lbl" x="500" y="1060" text-anchor="middle">differential move</text>
+  <text class="note" x="500" y="1079" text-anchor="middle">cmd = TickAng − target, then TickAng ← target</text>
+  <text class="note" x="500" y="1098" text-anchor="middle">TickAng1/2 start at 750 (= 90°) · open loop, never read back</text>
+  <rect class="b-red" x="280" y="1144" width="440" height="64" rx="10"/>
+  <text class="lbl" x="500" y="1171" text-anchor="middle">shoulder–elbow coupling</text>
+  <text class="note" x="500" y="1190" text-anchor="middle">D's command −= the E differential just issued</text>
+  <rect class="b-red" x="280" y="1238" width="440" height="78" rx="10"/>
+  <text class="lbl" x="500" y="1262" text-anchor="middle">chunk and pace</text>
+  <text class="note" x="500" y="1281" text-anchor="middle">|cmd| / 50 writes of ±50, then one remainder write (even 0)</text>
+  <text class="note" x="500" y="1300" text-anchor="middle">Sleep(120) before and after every write</text>
+
+  <path class="edge" d="M500,1114 V1140" marker-end="url(#ah)"/>
+  <text class="elbl" x="510" y="1131">D</text>
+  <path class="edge" d="M500,1208 V1234" marker-end="url(#ah)"/>
+  <path class="edge" d="M720,1075 H752 V1277 H724" marker-end="url(#ah)"/>
+  <text class="elbl" x="760" y="1180">E</text>
+
+  <path class="edge" d="M500,1316 V1412" marker-end="url(#ah)"/>
+  <text class="elbl" x="490" y="1362" text-anchor="end">robo &lt;&lt; RobCmd</text>
+
+  <!-- ===== Wire ===== -->
+  <rect class="group" x="200" y="1380" width="600" height="134" rx="12"/>
+  <text class="glbl" x="516" y="1401">THE WIRE — tserial.h/.cpp, modified 2013</text>
+  <rect class="b-red" x="280" y="1416" width="440" height="78" rx="10"/>
+  <text class="lbl" x="500" y="1440" text-anchor="middle">Tserial — COM1 · 9600 baud · 7E2</text>
+  <text class="note" x="500" y="1459" text-anchor="middle">CR LF appended · transmit only, receive never called</text>
+  <text class="note" x="500" y="1478" text-anchor="middle">open failure ignored → every write is a no-op</text>
+
+  <rect class="b-orange" x="830" y="1416" width="146" height="78" rx="10"/>
+  <text class="lbl" x="903" y="1440" text-anchor="middle">Rhino arm</text>
+  <text class="note" x="903" y="1459" text-anchor="middle">E shoulder · D elbow</text>
+  <text class="note" x="903" y="1478" text-anchor="middle">F waist: quill off/on</text>
+  <path class="edge" d="M720,1455 H826" marker-end="url(#ah)"/>
+  <text class="elbl" x="758" y="1447" text-anchor="middle">RS-232</text>
+
+  <!-- ===== Present but unused ===== -->
+  <rect class="group" x="24" y="1550" width="952" height="140" rx="12"/>
+  <text class="glbl" x="40" y="1571">PRESENT BUT UNUSED</text>
+  <rect class="b-planned" x="40" y="1586" width="296" height="78" rx="10"/>
+  <text class="lbl" x="188" y="1610" text-anchor="middle">RhinoMath.h</text>
+  <text class="note" x="188" y="1629" text-anchor="middle">uncompilable: undefined AngPair type</text>
+  <text class="note" x="188" y="1648" text-anchor="middle">hidden by a duplicate guard, RHINOMAN_H</text>
+  <rect class="b-planned" x="352" y="1586" width="296" height="78" rx="10"/>
+  <text class="lbl" x="500" y="1610" text-anchor="middle">not in the .vcxproj build</text>
+  <text class="note" x="500" y="1629" text-anchor="middle">RhrinoSpecificold.cpp — older motor layer</text>
+  <text class="note" x="500" y="1648" text-anchor="middle">ParseGCodeE4_27.cpp — Hello World stub</text>
+  <rect class="b-planned" x="664" y="1586" width="296" height="78" rx="10"/>
+  <text class="lbl" x="812" y="1610" text-anchor="middle">unused state</text>
+  <text class="note" x="812" y="1629" text-anchor="middle">Z parsed · QuilOutFlag never read</text>
+  <text class="note" x="812" y="1648" text-anchor="middle">Line's MoveToPoint* never set or used</text>
+
+  <!-- ===== Legend ===== -->
+  <text class="glbl" x="40" y="1724">LEGEND</text>
+  <rect class="b-gray" x="40" y="1738" width="26" height="14" rx="4"/>
+  <text class="note" x="78" y="1749">input / parser state</text>
+  <rect class="b-blue" x="270" y="1738" width="26" height="14" rx="4"/>
+  <text class="note" x="308" y="1749">parser</text>
+  <rect class="b-green" x="500" y="1738" width="26" height="14" rx="4"/>
+  <text class="note" x="538" y="1749">motion primitives</text>
+  <rect class="b-purple" x="730" y="1738" width="26" height="14" rx="4"/>
+  <text class="note" x="768" y="1749">IK gate</text>
+  <rect class="b-red" x="40" y="1760" width="26" height="14" rx="4"/>
+  <text class="note" x="78" y="1771">motor layer + serial</text>
+  <rect class="b-orange" x="270" y="1760" width="26" height="14" rx="4"/>
+  <text class="note" x="308" y="1771">hardware, outside the repo</text>
+  <rect class="b-planned" x="500" y="1760" width="26" height="14" rx="4"/>
+  <text class="note" x="538" y="1771">present but unused</text>
+  <path class="edge" d="M730,1767 H756" marker-end="url(#ah)"/>
+  <text class="note" x="768" y="1771">call / data flow</text>
+  <path class="edge-dash" d="M40,1789 H66" marker-end="url(#ah)"/>
+  <text class="note" x="78" y="1793">writes or reads Parse's modal state</text>
+</svg>
