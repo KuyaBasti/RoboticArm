@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 648" width="1000" height="648" role="img" aria-label="Robotic Arm Drawing System overview: a Windows C++ console program whose main loop calls Parse once at launch and again after each Enter key press, reading one line of the hardcoded G-code file test5.txt per call; Parse scans each line for G, X, Y, I, J and Z words and dispatches on the G digit to G00 rapid moves (quill off, jump, quill on), G01 lines in 0.2-unit linear steps, or G02 and G03 clockwise and counter-clockwise arcs in 0.2-unit arc steps; every XY point, ending with a snap to the exact target, goes through MoveToPoint, the one gate to the motors, which asks RhinoMath for two-link inverse kinematics on 9.0 plus 9.0 unit arms, gets back joint angles in degrees, and passes absolute clicks at 0.12 degrees per click for motors E and D, or plus or minus 20 clicks on F for quill off and on, to RhrinoSpecific; RhrinoSpecific sends only the click difference from its remembered pose, subtracts the shoulder move from the elbow move, and writes commands such as E-50 and D+19 in chunks of 50 with 120 ms sleeps through Tserial on COM1 at 9600 baud 7E2, as CR-LF terminated lines that are only ever transmitted, to the Rhino arm's E shoulder, D elbow and F waist motors.">
+  <style>
+    .bg{fill:#ffffff}
+    .title{fill:#1f2328;font:600 22px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .sub{fill:#59636e;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .lbl{fill:#1f2328;font:600 14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .note{fill:#59636e;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .glbl{fill:#59636e;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;letter-spacing:.06em}
+    .elbl{fill:#59636e;font:11px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .edge{stroke:#818b98;stroke-width:1.6;fill:none}
+    .edge-dash{stroke:#818b98;stroke-width:1.6;fill:none;stroke-dasharray:6 4}
+    .arrow{fill:#818b98}
+    .group{fill:none;stroke:#d1d9e0;stroke-width:1.2;stroke-dasharray:4 4}
+    .b-blue{fill:#ddf4ff;stroke:#54aeff;stroke-width:1.5}
+    .b-green{fill:#dafbe1;stroke:#4ac26b;stroke-width:1.5}
+    .b-purple{fill:#fbefff;stroke:#c297ff;stroke-width:1.5}
+    .b-orange{fill:#fff1e5;stroke:#fb8f44;stroke-width:1.5}
+    .b-gray{fill:#f6f8fa;stroke:#d1d9e0;stroke-width:1.5}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .dot{fill:#59636e}
+    @media (prefers-color-scheme: dark){
+      .bg{fill:#0d1117}
+      .title,.lbl{fill:#e6edf3}
+      .sub,.note,.glbl,.elbl{fill:#9198a1}
+      .edge,.edge-dash{stroke:#9198a1}
+      .arrow{fill:#9198a1}
+      .group{stroke:#3d444d}
+      .b-blue{fill:#0c2d6b;stroke:#4493f8}
+      .b-green{fill:#0f3b1e;stroke:#3fb950}
+      .b-purple{fill:#2e1a4f;stroke:#ab7df8}
+      .b-orange{fill:#3d1f0a;stroke:#f0883e}
+      .b-gray{fill:#151b23;stroke:#3d444d}
+      .dot{fill:#9198a1}
+    }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrow" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="1000" height="648" rx="12"/>
+  <text class="title" x="32" y="48">Robotic Arm Drawing System — system overview</text>
+  <text class="sub" x="32" y="74">Each G-code line becomes XY points; each is solved by two-link IK and sent to the arm as clicks on COM1.</text>
+
+  <!-- ===== Row A: input file and the stepping loop feed the parser ===== -->
+  <rect class="b-gray" x="44" y="100" width="220" height="56" rx="10"/>
+  <text class="lbl" x="154" y="124" text-anchor="middle">test5.txt</text>
+  <text class="note" x="154" y="143" text-anchor="middle">G-code · file name hardcoded</text>
+
+  <rect class="b-green" x="390" y="100" width="220" height="56" rx="10"/>
+  <text class="lbl" x="500" y="124" text-anchor="middle">Parse</text>
+  <text class="note" x="500" y="143" text-anchor="middle">char switch: G X Y I J Z</text>
+
+  <rect class="b-orange" x="736" y="100" width="220" height="56" rx="10"/>
+  <text class="lbl" x="846" y="124" text-anchor="middle">main() · console</text>
+  <text class="note" x="846" y="143" text-anchor="middle">Enter runs the next line</text>
+
+  <path class="edge" d="M264,128 H386" marker-end="url(#ah)"/>
+  <text class="elbl" x="325" y="120" text-anchor="middle">one line per call</text>
+  <path class="edge" d="M736,128 H614" marker-end="url(#ah)"/>
+  <text class="elbl mono" x="675" y="120" text-anchor="middle">parseLine()</text>
+
+  <!-- ===== Fan-out: dispatch on the G digit ===== -->
+  <path class="edge" d="M500,156 V188 H154 V216" marker-end="url(#ah)"/>
+  <path class="edge" d="M500,188 V216" marker-end="url(#ah)"/>
+  <path class="edge" d="M500,188 H846 V216" marker-end="url(#ah)"/>
+  <circle class="dot" cx="500" cy="188" r="3.5"/>
+  <text class="elbl" x="508" y="177">dispatch on the G digit</text>
+
+  <!-- ===== Row B: motion primitives ===== -->
+  <rect class="b-green" x="44" y="220" width="220" height="56" rx="10"/>
+  <text class="lbl" x="154" y="244" text-anchor="middle">G00 · rapid</text>
+  <text class="note" x="154" y="263" text-anchor="middle">quill off · jump · quill on</text>
+
+  <rect class="b-green" x="390" y="220" width="220" height="56" rx="10"/>
+  <text class="lbl" x="500" y="244" text-anchor="middle">Line · G01</text>
+  <text class="note" x="500" y="263" text-anchor="middle">0.2-unit linear steps</text>
+
+  <rect class="b-green" x="736" y="220" width="220" height="56" rx="10"/>
+  <text class="lbl" x="846" y="244" text-anchor="middle">circle · G02 / G03</text>
+  <text class="note" x="846" y="263" text-anchor="middle">0.2-unit arc steps · CW / CCW</text>
+
+  <!-- ===== Fan-in: every XY point goes to one gate ===== -->
+  <path class="edge" d="M154,276 V304 H500"/>
+  <path class="edge" d="M846,276 V304 H500"/>
+  <path class="edge" d="M500,276 V328" marker-end="url(#ah)"/>
+  <circle class="dot" cx="500" cy="304" r="3.5"/>
+  <text class="elbl" x="508" y="322">XY points + endpoint snap</text>
+
+  <!-- ===== Row C: the gate and the inverse kinematics ===== -->
+  <rect class="b-green" x="44" y="332" width="220" height="56" rx="10"/>
+  <text class="lbl" x="154" y="356" text-anchor="middle">RhinoMath · IK</text>
+  <text class="note" x="154" y="375" text-anchor="middle">2 links, arms 9.0 + 9.0</text>
+
+  <rect class="b-green" x="390" y="332" width="220" height="56" rx="10"/>
+  <text class="lbl" x="500" y="356" text-anchor="middle">MoveToPoint</text>
+  <text class="note" x="500" y="375" text-anchor="middle">the one gate to the motors</text>
+
+  <path class="edge" d="M390,350 H268" marker-end="url(#ah)"/>
+  <text class="elbl" x="327" y="342" text-anchor="middle">XY point</text>
+  <path class="edge" d="M264,372 H386" marker-end="url(#ah)"/>
+  <text class="elbl" x="327" y="391" text-anchor="middle">θ1, θ2 (degrees)</text>
+
+  <!-- ===== Row D: motor layer and serial port ===== -->
+  <path class="edge" d="M500,388 V440" marker-end="url(#ah)"/>
+  <text class="elbl" x="508" y="409">E, D: absolute clicks = θ ÷ 0.12°</text>
+  <text class="elbl" x="508" y="425">F: ±20 for quill off / on</text>
+
+  <rect class="b-green" x="390" y="444" width="220" height="72" rx="10"/>
+  <text class="lbl" x="500" y="466" text-anchor="middle">RhrinoSpecific</text>
+  <text class="note" x="500" y="485" text-anchor="middle">sends Δ clicks in ±50 chunks</text>
+  <text class="note" x="500" y="502" text-anchor="middle">elbow Δ minus shoulder Δ</text>
+
+  <rect class="b-orange" x="736" y="444" width="220" height="72" rx="10"/>
+  <text class="lbl" x="846" y="476" text-anchor="middle">Tserial</text>
+  <text class="note" x="846" y="495" text-anchor="middle">COM1 · 9600 baud · 7E2</text>
+
+  <path class="edge" d="M610,480 H732" marker-end="url(#ah)"/>
+  <text class="elbl mono" x="673" y="472" text-anchor="middle">E-50 · D+19</text>
+  <text class="elbl" x="673" y="497" text-anchor="middle">120 ms sleeps</text>
+
+  <!-- ===== Row E: the arm (hardware, not in this repo) ===== -->
+  <path class="edge" d="M846,516 V564" marker-end="url(#ah)"/>
+  <text class="elbl" x="838" y="544" text-anchor="end">CR-LF lines · TX only</text>
+
+  <rect class="b-blue" x="736" y="568" width="220" height="56" rx="10"/>
+  <text class="lbl" x="846" y="592" text-anchor="middle">Rhino arm</text>
+  <text class="note" x="846" y="611" text-anchor="middle">E shoulder · D elbow · F waist</text>
+
+  <!-- ===== Legend ===== -->
+  <rect class="b-green" x="44" y="479" width="14" height="10" rx="2"/>
+  <text class="note" x="66" y="488">program code (C++)</text>
+  <rect class="b-orange" x="44" y="503" width="14" height="10" rx="2"/>
+  <text class="note" x="66" y="512">console / serial I/O</text>
+  <rect class="b-gray" x="44" y="527" width="14" height="10" rx="2"/>
+  <text class="note" x="66" y="536">G-code input file</text>
+  <rect class="b-blue" x="44" y="551" width="14" height="10" rx="2"/>
+  <text class="note" x="66" y="560">hardware, not in this repo</text>
+</svg>

@@ -10,7 +10,7 @@
 > where it must go, with the elbow's command corrected by the shoulder's move.
 > What leaves the program is a stream of short serial commands —
 > `E-50`, `D+19` — pacing a Rhino educational arm over COM1 at 9600 baud, 7E2.
-> Every primitive ends with an unconditional snap to the exact target, which
+> Every primitive's travel ends with an unconditional snap to the exact target, which
 > is the real reason the drawings close.
 
 This document is the developer-facing map of the whole system — every component
@@ -21,80 +21,7 @@ per-layer detail, building, and running.
 
 ## End-to-end flowchart
 
-```mermaid
-flowchart TD
-    %% ===== Input =====
-    subgraph INPUT["Input — one G-code line per Enter key"]
-        gfile[("test3 / test5 / test6.txt<br/>the face drawing, 3 variants<br/>+ an m80 trailer nothing reads")]:::data
-        driver["ParseGCodeD.cpp main<br/>while(1): parseLine(); cin.get()<br/>input file hardcoded: test5.txt"]:::data
-    end
-
-    %% ===== Parser =====
-    subgraph PARSER["The parser — Parse.h / Parse.cpp"]
-        scan["parseLine — char switch<br/>G reads CommandLine[2]<br/>X/Y/I/J/Z: digit/dot/minus scanner + atof"]:::stage
-        modal["modal word state<br/>X, Y, I, J persist across lines"]:::stage
-        disp["dispatch on the G digit<br/>'0' jump · '1' line · '2'/'3' arc"]:::stage
-    end
-
-    %% ===== Primitives =====
-    subgraph PRIMS["Motion primitives — each ends with an endpoint snap"]
-        rapid["G00 — pen up (F-20),<br/>one MoveToXY, pen down (F+20)"]:::geom
-        line["Line — relative vector,<br/>±0.2-unit steps, angle from +Y axis<br/>bound: int(Length / 0.2), re-evaluated"]:::geom
-        arc["circle — I,J = absolute center,<br/>degrees swept in 0.2-unit chords<br/>step = 360 / (2πR / 0.2)"]:::geom
-    end
-
-    %% ===== Gate =====
-    subgraph GATE["The gate — MoveToPoint.cpp / RinoMath.cpp"]
-        ik["RhinoMath::getAngpair<br/>θ2 = acos((x²+y²−A²−B²)/2AB)<br/>θ1 = asin(A·sinθ2/r) + atan(y/x)"]:::gate
-        quant["degrees → clicks<br/>int(θ / 0.12°)"]:::gate
-    end
-
-    %% ===== Motor =====
-    subgraph MOTOR["Motor layer — RhrinoSpecific.cpp"]
-        diff["differential move<br/>cmd = TickAng − target<br/>TickAng ← target (absolute, open-loop)"]:::motor
-        couple["coupling: D command −=<br/>E's just-issued differential"]:::motor
-        chunk["chunk into ±50-click commands<br/>+ remainder · 120 ms Sleep ×2 per write"]:::motor
-    end
-
-    %% ===== Wire =====
-    subgraph WIRE["The wire — tserial.cpp (vendored, 2013)"]
-        com["COM1 · 9600 baud · 7E2<br/>CR-LF appended · TX only<br/>failed open → silent no-op writes"]:::motor
-        arm["Rhino arm<br/>E shoulder · D elbow · F quill"]:::hw
-    end
-
-    %% ===== Dead code =====
-    subgraph DEAD["Present but dead"]
-        deadh["RhinoMath.h — uncompilable class,<br/>shielded by duplicate guard RHINOMAN_H"]:::planned
-        deadold["RhrinoSpecificold.cpp +<br/>ParseGCodeE4_27.cpp — excluded from build"]:::planned
-        deadz["Z parsed, QuilOutFlag declared,<br/>Line's MoveToPoint* — all unused"]:::planned
-    end
-
-    gfile --> driver --> scan --> modal --> disp
-    disp -- "G00" --> rapid
-    disp -- "G01" --> line
-    disp -- "G02 / G03" --> arc
-    rapid -- "one point" --> ik
-    line -- "each step +<br/>endpoint snap" --> ik
-    arc -- "each chord +<br/>endpoint snap" --> ik
-    ik --> quant
-    quant -- "E then D,<br/>always in that order" --> diff
-    rapid -. "F±20, no bookkeeping" .-> chunk
-    diff --> couple --> chunk --> com --> arm
-
-    %% ===== Styles =====
-    classDef caller fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A,stroke-width:2px;
-    classDef stage fill:#E6F1FB,stroke:#185FA5,color:#0C447C;
-    classDef geom fill:#E1F5EE,stroke:#0F6E56,color:#085041,stroke-width:2px;
-    classDef gate fill:#EEEDFE,stroke:#534AB7,color:#3C3489,stroke-width:2px;
-    classDef motor fill:#FDEBEC,stroke:#B3261E,color:#8C1D18;
-    classDef data fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
-    classDef hw fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A,stroke-width:2px;
-    classDef planned fill:#F6F6F4,stroke:#888780,color:#5F5E5A,stroke-dasharray:5 4;
-```
-
-**Legend** — ⬜ input / hardware · 🟦 parser · 🟩 motion primitives ·
-🟪 IK gate · 🟥 motor layer & wire · ◌ dashed = present but dead
-(the shielded header, the excluded files, the unused state).
+<p align="center"><img src="docs/system-design-flowchart.svg" alt="Robotic Arm Drawing System end-to-end flowchart. ParseGCodeD.cpp main builds Parse with the hardcoded file test5.txt (one of three face-drawing variants, test3, test5 and test6, each ending in an m80 line) and loops: parseLine, then wait for Enter. parseLine reads one line with getline, takes the G digit from CommandLine[2] and scans X, Y, I, J and Z (digits, dot and minus, then atof) into modal member state that is never reset, so the m80 line, which has no G word, re-runs the last move. Dispatch on the G digit: 0 is a jump (F −20 quill off, one MoveToXY to the target, F +20 quill on); 1 is Line, a relative vector in ±0.2 steps at an angle from the +Y axis, loop bound int(Length / 0.2) re-read each step, whose points Parse sends to MoveToXY; 2 and 3 are circle, with I and J as the absolute center and 360 / (2πR / 0.2) degrees per 0.2-unit arc step, which calls MoveToXY itself. Line and arc end with an endpoint snap; any other digit causes no motion. MoveToPoint::MoveToXY runs RhinoMath::getAngpair (two-link inverse kinematics, A = B = 9.0, degrees) and converts degrees to clicks with int(θ / 0.12), always motor E then motor D. RhrinoSpecific sends TickAng minus target and stores the target (seeded at 750 clicks = 90°, open loop); only the D command subtracts the E differential just issued; every command is chunked into ±50-click writes plus a remainder, with Sleep(120) before and after each write. The quill moves F −20 and F +20 skip the IK and TickAng. Tserial (tserial.h/.cpp, modified 2013) sends over COM1 at 9600 baud 7E2 with CR LF appended, transmit only, and a failed open turns every write into a no-op; RS-232 carries the commands to the Rhino arm: E shoulder, D elbow, F waist for quill off and on. Present but unused: RhinoMath.h (uncompilable, skipped because of a duplicate RHINOMAN_H guard), RhrinoSpecificold.cpp and ParseGCodeE4_27.cpp (not in the build), Z, QuilOutFlag and Line's MoveToPoint pointer. A legend maps the colours to input, parser, motion primitives, IK gate, motor layer and serial, hardware and unused parts." width="100%"></p>
 
 ---
 
@@ -126,7 +53,8 @@ flowchart TD
    handshake.
 
 3. **The endpoint snap is the real contract.** Every primitive — jump, line,
-   arc — ends with an unconditional `MoveToXY` straight to the exact target.
+   arc — ends its travel with an unconditional `MoveToXY` straight to the
+   exact target (a jump then only drops the quill with `F+20`).
    That single call is what the system actually guarantees; the interpolation
    in between only shapes the path. This is why several latent geometry bugs
    (the stale first loop bound, the leftward-horizontal walk, the vanishing
@@ -143,32 +71,7 @@ flowchart TD
 Line 9 of [test5.txt](test5.txt) is `G01X4.0Y12.0`, arriving with the pen at
 (3.77, 10.0) — the left ear stroke of the face:
 
-```mermaid
-sequenceDiagram
-    participant U as operator (Enter key)
-    participant P as Parse
-    participant L as Line
-    participant M as MoveToPoint
-    participant K as RhinoMath
-    participant R as RhrinoSpecific
-    participant C as COM1
-
-    U->>P: parseLine()
-    P->>P: getline "G01X4.0Y12.0"<br/>GCODE='1', X=4.0, Y=12.0
-    P->>L: LineReset()#59; WorkingPt = (0.23, 2.0)
-    loop int(2.013 / 0.2) = 10 steps (first check uses the previous Length)
-        P->>L: getNextPt(WorkingPt, Current)
-        L-->>P: UnitDistInc += 0.2, angle = atan(0.23/2.0) ≈ 6.6° from +Y<br/>→ (3.79, 10.20), (3.82, 10.40), …
-        P->>M: MoveToXY(point)
-        M->>K: getAngpair — θ2 = acos(…), θ1 = asin(…) + atan(y/x)
-        K-->>M: degrees (printed to console)
-        M->>R: MotoMoveServo('E', θ1/0.12) then ('D', θ2/0.12)
-        R->>C: "E±50" ×n + remainder, CR-LF<br/>D command reduced by E's differential
-    end
-    P->>M: MoveToXY(4.0, 12.0) — the endpoint snap
-    Note over M,R: (4, 12) → θ1 ≈ 116.92°, θ2 ≈ 90.71°<br/>→ absolute clicks E 974, D 755
-    P->>P: CurrentX/Y ← (4.0, 12.0)
-```
+<p align="center"><img src="docs/one-g01-line.svg" alt="Robotic Arm Drawing System, one G01 line end to end: a 21-step sequence across main, Parse, Line, MoveToPoint, RhinoMath, RhrinoSpecific and Tserial on COM1. Line 9 of test5.txt, G01X4.0Y12.0, starts with the pen down at (3.77, 10.0) and TickAng1/2 at 1024/892 clicks. main calls parseLine, which reads GCODE '1', X 4.0 and Y 12.0, calls Line's LineReset and sets WorkingPt to (0.23, 2.0). A loop runs 10 passes; its bound int(Length / 0.2) first reads the stale constructor Length of 1.0. Each pass, getNextPt adds 0.2 to UnitDistInc along atan(0.23 / 2.0), about 6.56° from +Y, and returns the next point ((3.79, 10.20) on pass 1); MoveToXY asks RhinoMath for the two-link IK angles in degrees (122.41° and 105.61° on pass 1), calls MotoMoveServo('E', 1020), which writes the differential E+4 with CR LF, then MotoMoveServo('D', 880), whose differential 12 minus E's 4 is written as D+8; Parse prints the point. After the loop the endpoint snap MoveToXY(4.0, 12.0) gives 116.92° and 90.71°, absolute clicks E 974 and D 755, so it writes only E-0 and D+1. Parse sets Current to (4.0, 12.0) and returns to main, which waits for the next Enter; every write sits between two 120 ms sleeps, about 5.3 s for this stroke." width="100%"></p>
 
 Things worth noticing:
 
@@ -178,7 +81,7 @@ Things worth noticing:
   here, since this is the file's first `G01`). From iteration one onward the
   bound is the true `int(2.013 / 0.2) = 10`.
 - **Each interpolated point costs at least ~480 ms of sleep** — two motors,
-  each write bracketed by 120 ms `Sleep`s — before any bytes move. Ten steps
+  each write bracketed by 120 ms `Sleep`s. Ten steps
   plus a snap make this one stroke a multi-second affair by design.
 - **The IK trace is the observable output.** `getAngpair` prints both angles
   on every call; with the arm unplugged this sequence is exactly what you see,
@@ -186,29 +89,12 @@ Things worth noticing:
 
 ## Deep dive 2 — the differential tick pipeline
 
-The first move from home to (4, 12), worked through
-[RhrinoSpecific::MotoMoveServo](RhrinoSpecific.cpp)'s arithmetic:
+A hypothetical first move straight from home to (4, 12), worked through
+[RhrinoSpecific::MotoMoveServo](RhrinoSpecific.cpp)'s arithmetic (in
+[test5.txt](test5.txt) the arm arrives there from (3.77, 10.0), so the real
+differences are smaller):
 
-```text
-  MoveToXY(4.0, 12.0)
-       │  IK: θ1 = 116.92°, θ2 = 90.71°        (degrees)
-       ▼
-  int(θ / 0.12°)   →   E: 974 clicks    D: 755 clicks   (absolute pose)
-       │
-       ▼
- ┌─ RhrinoSpecific — remembered state: TickAng1 = 750, TickAng2 = 750 ─┐
- │                                                                     │
- │  'E':  diff = 750 − 974 = −224      TickAng1 ← 974                  │
- │        EmotorDistance = −224        command distance = −224         │
- │                                                                     │
- │  'D':  diff = 750 − 755 = −5        TickAng2 ← 755                  │
- │        command distance = −5 − (−224) = +219      ← the coupling    │
- └─────────────────────────────────────────────────────────────────────┘
-       │  chunk: |d| / 50 full commands + remainder, direction from sign
-       ▼
-  "E-50" ×4, "E-24"      then      "D+50" ×4, "D+19"
-  each CR-LF terminated · Sleep(120) before and after every write
-```
+<p align="center"><img src="docs/tick-pipeline.svg" alt="Robotic Arm Drawing System, the differential tick pipeline for one MoveToXY call, worked for (4.0, 12.0) as a hypothetical first move from home. RhinoMath::getAngpair, with ArmA = ArmB = 9.0, gives θ2 = acos(−2 / 162) = 90.71° and θ1 = 45.35° + 71.57° = 116.92°; MoveToXY truncates θ / 0.12 to absolute clicks: 974 for motor E, the shoulder, and 755 for motor D, the elbow. Call 1, MotoMoveServo('E', 974): remembered TickAng1 = 750 (the seed), diff = 750 − 974 = −224 (old minus new), TickAng1 becomes 974, and Distance −224 is sent unchanged and kept as EmotorDistance and EmotorDistance2. Call 2, MotoMoveServo('D', 755): diff = 750 − 755 = −5, TickAng2 becomes 755, and Distance = −5 − (−224) = +219, the elbow's command corrected by the shoulder's move. Each call chunks its distance into 50-click commands plus a remainder that is always written: E-50 four times and E-24 (writes 1 to 5, all before call 2), then D+50 four times and D+19 (writes 6 to 10). A zoomed write shows Sleep(120), the bytes E, minus, 5, 0 (0x45 0x2D 0x35 0x30), CR and LF, then Sleep(120), on COM1 at 9600 baud, 7 data bits, even parity, 2 stop bits. The whole MoveToXY is 10 writes and 60 bytes, about 69 ms on the line, against 2.4 s of Sleep; if COM1 fails to open the writes do nothing but the sleeps still run. Notes add that in test5.txt the pen reaches (4, 12) at the end of line 9's interpolation, so the real snap sends only E-0 and D+1, and that the quill calls F-20 and F+20 match neither branch and leave the remembered state alone." width="100%"></p>
 
 - **`TickAng` stores the absolute, sends the difference.** After this move the
   layer remembers 974/755; the next target is diffed against that. The arm is
@@ -218,8 +104,9 @@ The first move from home to (4, 12), worked through
   differential from the immediately preceding call. `MoveToXY`'s fixed
   E-then-D order is load-bearing; a standalone D move would subtract a stale
   shoulder differential.
-- **The quill skips all of it.** `F` moves fall through both branches:
-  `F-20` / `F+20` go out as-is, relative every time, no remembered state.
+- **The quill moves skip all of it.** The waist motor's `F-20` / `F+20`
+  (quill off / on) fall through both branches and go out as-is, relative
+  every time, no remembered state.
 
 ---
 
@@ -252,13 +139,13 @@ The first move from home to (4, 12), worked through
 | 0.12° | one encoder click; `MoveToXY` divides degrees by `.12` |
 | 750 / 750 | `TickAng1` / `TickAng2` seeds — "clicks to get from 0° to 90°" |
 | (9, 9) | `Parse`'s Cartesian home — solves to exactly 90°/90° = 750/750 clicks, closing the three-way seed agreement |
-| 0.2 | the interpolation quantum: units per line step and per arc chord — a literal at both call sites |
-| 360 / (2πR / 0.2) | degrees per arc step, derived from radius so chords stay 0.2 units |
+| 0.2 | the interpolation quantum: units per line step and per arc step — a literal in three places (both call sites in `Parse.cpp`, plus `Line::getNextPt`); `RhrinoSpecific`'s settable `unitstepVal = 0.2` is never read |
+| 360 / (2πR / 0.2) | degrees per arc step, derived from radius so each step covers 0.2 units of arc |
 | 50 | maximum clicks per serial command; moves chunked into `±50`s + remainder |
-| ±20 | quill (`F`) clicks: −20 pen up, +20 pen down — always relative |
+| ±20 | waist (`F`) clicks: −20 quill off, +20 quill on — always relative |
 | 120 ms | `Sleep` before *and* after every serial write (~480 ms floor per interpolated point; the old motor layer used 250 ms) |
 | 9600 · 7E2 | COM1 configuration: `BaudRate` 9600, `ByteSize` 7, `EVENPARITY`, `TWOSTOPBITS` — not the 8N1 the old README claimed |
-| 80 | max characters per G-code line (`getline` buffer) — and, coincidentally, the `RobCmd` buffer |
+| 80 | `getline` buffer size (at most 79 characters per G-code line) — and, coincidentally, the `RobCmd` buffer size |
 | `CommandLine[2]` | where the G digit is read from — zero-padded two-digit codes only |
 | `'8'` | the stop sentinel (third char of a G line); the `m80` trailer never matches it |
 | 3 / 0 | sample drawings / automated tests |
@@ -272,13 +159,14 @@ code was validated the way classroom robot code usually is, and the repo shows
 its work:
 
 - **The driver is the debugger.** `while(1) { parseLine(); cin.get(); }`
-  single-steps the program one G-code line per Enter, and every layer prints:
+  single-steps the program one G-code line per Enter, and the console traces
+  each step (the arc and motor layers print nothing):
   the parser echoes `G0# X… Y… I… J…`, the line loop prints each interpolated
   point, and the IK prints both joint angles per solve. `circle` still carries
   a `test` variable kept "for break point to be removed".
-- **Dry-run by default.** With no arm on COM1 the failed connect leaves an
+- **Dry-run by default.** If COM1 can't be opened, the failed connect leaves an
   invalid handle and every write silently no-ops, so the full pipeline runs as
-  a console trace on any Windows machine.
+  a console trace on any Windows machine without a COM1 port.
 - **Hardware runs happened but aren't captured here** — the in-class comments
   ("work explained in class with Prof and Rebecca", tuning notes like
   "Needs to be 1 for line but 50 for point-to-point") are the surviving
@@ -300,9 +188,11 @@ its work:
   stale first loop bound, the leftward-horizontal walk (ΔY = 0, ΔX < 0 steps
   *away* from the target), and the vanishing CW-across-0° arc all still
   produce closed drawings.
-- **Degrees end to end** — every angle is converted to degrees at birth
-  ("for demonstration", per the comments) and back to radians inside each
-  trig call. Readable in the console, wasteful in the math, and the reason
+- **Degrees end to end** — every interpolation angle (`Line`'s heading,
+  `circle`'s sweep) is converted to degrees at birth ("for demonstration",
+  per the comments) and back to radians inside each trig call; the IK
+  solves in radians and converts to degrees only on output. Readable in the
+  console, wasteful in the math, and the reason
   the arc sweep logic can use `+360` bookkeeping — which is also where the
   CCW extra-lap bug lives (`G03` with start < end draws a full pen-down
   revolution).
@@ -330,9 +220,15 @@ its work:
   (nonexistent `AngPair` type), but its copy-pasted `RHINOMAN_H` guard makes
   every inclusion after [RhinoMan.h](RhinoMan.h) a no-op. Delete the "unused"
   guard collision and the build breaks.
-- **The `m80` trailer is decorative** — unrecognized by the parser, it leaves
-  all state stale and the dispatch replays the previous command once per
-  trailer line before EOF ends things.
+- **The `m80` trailer is not recognized** — it leaves all state stale and the
+  dispatch replays the previous command once per trailer line before EOF ends
+  things. In test3/test5 that is a near no-op (a repeated `G00` home, a
+  zero-sweep `G02` that just snaps to (9, 9)). In [test6.txt](test6.txt) it
+  replays the final `G01X1.1Y1.0`: rounding in Parse's `CurrentX` update,
+  (1.1 − 9.0) + 9.0, leaves a residual ΔX of about 4e-16 with ΔY = 0, so
+  the angle is `atan(ΔX / 0)` = 90°. The stale `Length` lets the loop run
+  once, and the arm makes a stray 0.2-unit move to (1.3, 1.0) before the
+  endpoint snap returns it to (1.1, 1.0).
 
 ---
 
